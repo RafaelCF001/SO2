@@ -8,11 +8,12 @@ package main;
 import operatingSystem.Kernel;
 import operatingSystem.FileStruct;
 
-import java.io.File;
-import java.io.FileWriter;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Scanner;
+
 /**
  * Kernel desenvolvido pelo aluno. Outras classes criadas pelo aluno podem ser
  * utilizadas, como por exemplo: - Arvores; - Filas; - Pilhas; - etc...
@@ -46,7 +47,7 @@ public class MyKernel implements Kernel {
 
 
         if(comando[0].equals("-l") && comando.length == 1){
-        String permArquivos = "";
+            String permArquivos = "";
             FileStruct actualFile = inodeTable.get(actualNodeNum);
 
             for (FileStruct permission: actualFile.fileChildren.values()) {
@@ -62,20 +63,23 @@ public class MyKernel implements Kernel {
 
             }
             result = permArquivos;
-        } else if (comando[0].equals("-l")) {
+        }else if (comando[0].equals("-l")) {
+
             num = FileStruct.findNode(comando[1].split("/"),inodeTable.get(actualNodeNum));
             FileStruct fileLs = inodeTable.get(num);
+
             String arquivos = "";
 
             for (FileStruct permission: fileLs.fileChildren.values()) {
                 arquivos = arquivos +" " +permission.permission +" "+permission.date + " " + permission.nome + "\n";
-                result = arquivos;
+
 
             }
 
             if(!(fileLs.filePermission.isEmpty())) {
+
                 for(String arq: fileLs.fileArquivo.keySet()){
-                    arq= arq + " " + fileLs.filePermission.get(arq) + " " + fileLs.fileDate.get(arq)  +" " + arquivos + "\n";
+                    arquivos= arq + " " + fileLs.filePermission.get(arq) + " " + fileLs.fileDate.get(arq)  +"\n" + arquivos + "\n";
                 }
             }
 
@@ -190,9 +194,7 @@ public class MyKernel implements Kernel {
         //variavel result deverah conter o que vai ser impresso na tela apos comando do usuário
         String result = "";
         String currentDir = "";
-        System.out.println("Chamada de Sistema: cd");
-        System.out.println("\tParametros: " + parameters);
-        System.out.println("Dir atual: " + diretorioAtual);
+
 
         if(parameters.equals("..") & diretorioAtual.equals("root")){
             return "Nao eh possivel fazer esse movimento";
@@ -201,9 +203,11 @@ public class MyKernel implements Kernel {
         }
 
         for(String path: parameters.split("/")){
-            System.out.println("Caminho: "+ parameters.split("/")[0]);
-            if(path.equals(" ")){
-                currentDir = root.nome;
+
+
+            if(path.equals("")){
+                System.out.println(path);
+                currentDir = "root";
                 actualNodeNum = 0;
             }
             else if (path.equals("..")){
@@ -222,7 +226,7 @@ public class MyKernel implements Kernel {
         diretorioAtual = currentDir;
 
         //setando parte gráfica do diretorio atual
-        operatingSystem.fileSystem.FileSytemSimulator.currentDir = currentDir;
+        operatingSystem.fileSystem.FileSytemSimulator.currentDir = currentDir  + "/";
 
         //fim da implementacao do aluno
         return result;
@@ -345,7 +349,38 @@ public class MyKernel implements Kernel {
         String result = "";
         System.out.println("Chamada de Sistema: rm");
         System.out.println("\tParametros: " + parameters);
+        int num = 0;
 
+
+        if(parameters.split(" ")[0].equals("-R")){ //remove diretorio
+            String[] separador = parameters.split(" ");
+
+            num = FileStruct.findNodeRemove(separador[1].split("/"), inodeTable.get(actualNodeNum));
+            if(num == actualNodeNum) {
+                FileStruct fileToRemove = inodeTable.get(num);
+                FileStruct fileTransfer = fileToRemove.fileParent;
+
+                fileTransfer.fileChildren.remove(fileToRemove.nome);
+                inodeTable.remove(num);
+
+                actualNodeNum = fileTransfer.nodeNumber;
+            }else {
+                FileStruct fileToRemove = inodeTable.get(num);
+                FileStruct fileTransfer = fileToRemove.fileParent;
+
+                fileTransfer.fileChildren.remove(fileToRemove.nome);
+                inodeTable.remove(num);
+
+            }
+        }else {
+            String[] fileSplit = parameters.split("/");
+            String fileName = fileSplit[fileSplit.length-1];
+            num = FileStruct.findNodeRemove(fileSplit, inodeTable.get(actualNodeNum));
+            System.out.println(num);
+
+            FileStruct fileRemove = inodeTable.get(num);
+            fileRemove.fileArquivo.remove(fileName);
+        }
 
         return result;
     }
@@ -461,7 +496,7 @@ public class MyKernel implements Kernel {
 
         if(pathFile[pathFile.length-1].contains(".txt")){
 
-        FileStruct.addFile(pathFile[pathFile.length-1],divider);
+        nodeToFile.addFile(pathFile[pathFile.length-1],divider);
             nodeToFile.filePermission.put(pathFile[pathFile.length-1],"rwxrwxrwx");
 
         SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
@@ -481,11 +516,13 @@ public class MyKernel implements Kernel {
     public String cat(String parameters) {
         //variavel result deverah conter o que vai ser impresso na tela apos comando do usuário
         String result = "";
-        System.out.println("Chamada de Sistema: cat");
-        System.out.println("\tParametros: " + parameters);
+        String[] path = parameters.split("/");
+        String fileCat = path[path.length - 1];
+        String content = "";
 
-        //inicio da implementacao do aluno
-        //fim da implementacao do aluno
+        content = FileStruct.getContentOfFile(fileCat);
+        result = content;
+
         return result;
     }
 
@@ -495,9 +532,94 @@ public class MyKernel implements Kernel {
         System.out.println("Chamada de Sistema: batch");
         System.out.println("\tParametros: " + parameters);
 
-        //inicio da implementacao do aluno
-        //fim da implementacao do aluno
-        return result;
+        try {
+            String linha = null;
+            FileReader fileBatch = new FileReader(parameters);
+            BufferedReader buffer = new BufferedReader(fileBatch);
+            String param = "";
+
+            while ((linha = buffer.readLine()) != null){
+                String[] linhaCmp = linha.split(" ");
+
+                if(linhaCmp[0].equals("mkdir")){
+
+                    mkdir(linhaCmp[1]);
+
+                }else if(linhaCmp[0].equals("cat")){
+
+                    cat(linhaCmp[1]);
+
+                }else if(linhaCmp[0].equals("cd")){
+                    cd(linhaCmp[1]);
+
+                }else if(linhaCmp[0].equals("chmod")){
+
+                    param = linhaCmp[1] + linhaCmp[2];
+                    chmod(param);
+
+                }else if(linhaCmp[0].equals("cp")){
+
+                    if(linhaCmp.length == 4){
+
+                        param = linhaCmp[1] + linhaCmp[2] + linhaCmp[3];
+
+                    }else{
+                        param = linhaCmp[1] + linhaCmp[2];
+                    }
+                    cp(param);
+
+                }else if(linhaCmp[0].equals("createfile")){
+
+                    param = linhaCmp[1] + linhaCmp[2];
+                    createfile(param);
+
+                }else if(linhaCmp[0].equals("info")){
+
+                    info();
+
+                }else if(linhaCmp[0].equals("ls")){
+
+                    for(int i = 1; i<linhaCmp.length; i++){
+                            param = param + linhaCmp[i];
+                    }
+
+                    ls(param);
+
+                }else if(linhaCmp[0].equals("mv")){
+
+                    for(int i = 1; i<=linhaCmp.length; i++){
+                        param = param + linhaCmp[i];
+                    }
+
+                    mv(param);
+
+                }else if(linhaCmp[0].equals("rm")){
+
+                    for(int i = 1; i<=linhaCmp.length; i++){
+                        param = param + linhaCmp[i];
+                    }
+
+                    rm(param);
+
+                }else if(linhaCmp[0].equals("rmdir")){
+
+                    for(int i = 1; i<=linhaCmp.length; i++){
+                        param = param + linhaCmp[i];
+                    }
+
+                    rmdir(param);
+
+                }
+            }
+
+        }catch (FileNotFoundException fl){
+            return "Arquivo não existe";
+        } catch (IOException e) {
+            return "Erro de entrada";
+        }
+
+
+        return "Comandos executados";
     }
 
     public String dump(String parameters) {
@@ -505,10 +627,22 @@ public class MyKernel implements Kernel {
         String result = "";
         System.out.println("Chamada de Sistema: dump");
         System.out.println("\tParametros: " + parameters);
+        if(parameters.contains(".txt")) {
 
-        //inicio da implementacao do aluno
-        //fim da implementacao do aluno
-        return result;
+
+            result = FileStruct.recurssiveRebuild(inodeTable.get(0));
+
+            try {
+                FileWriter fileDump = new FileWriter(parameters);
+                fileDump.write(result);
+                fileDump.close();
+            } catch (IOException io) {
+                result = "Erro io ";
+            }
+            return result;
+        }else {
+            return "Apenas arquivos txt permitidos";
+        }
     }
 
     public String info() {

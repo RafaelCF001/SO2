@@ -1,5 +1,7 @@
 package operatingSystem;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -13,11 +15,14 @@ public class FileStruct {
 	public FileStruct fileParent;
 	public String permission = "rwxrwxrwx";
 	public int nodeNumber;
-	public static HashMap<String,FileWriter> fileArquivo = new HashMap<>();
+	public HashMap<String,FileWriter> fileArquivo = new HashMap<>();
 	public String date;
 	public HashMap<String, String> filePermission = new HashMap<>();
 	public HashMap<String, String> fileDate = new HashMap<>();
-	public static void addFile(String nomeArquivo, String[] conteudo)  {
+
+	public static String commands = "";
+
+	public  void addFile(String nomeArquivo, String[] conteudo)  {
 		try {
 			int i = 0;
 			FileWriter meuEscritor = new FileWriter(nomeArquivo);
@@ -42,7 +47,7 @@ public class FileStruct {
 			System.out.println("Erro");
 		}
 	}
-	public static void addFileHash(String fileName, FileWriter fileTo){
+	public void addFileHash(String fileName, FileWriter fileTo){
 		fileArquivo.put(fileName,fileTo);
 	}
 
@@ -118,10 +123,8 @@ public class FileStruct {
 	}
 	public static int findNodeRemove(String[] comando,  FileStruct nodeAtual){
 		int nodeNum = 0;
-		System.out.println("Comando: " + comando.length);
 		try{
 			for (int i = 0; i < comando.length; i++) {
-				System.out.println("Comando" + comando[i]);
 				if (comando[i].equals(" ")) { //verifica se o comando é igual a / -> va para root
 					nodeNum = 0;
 				}
@@ -141,7 +144,7 @@ public class FileStruct {
 			}
 			return nodeNum;
 		}catch( Exception ex){
-			System.out.println("Ex");
+			System.out.println("O arquivo nao existe");
 			return 0;
 		}
 	}
@@ -152,6 +155,114 @@ public class FileStruct {
 		for(FileStruct nodeCp: node){
 			nodeCp.permission = nodePermission;
 			recurssiveNodePermission(nodeCp.fileChildren.values(), nodePermission);
+		}
+	}
+	public static String recurssiveRebuild(FileStruct node){
+
+		if(node == null){
+			return "";
+		}
+		if(node.nome.equals("root") && node.nodeNumber == 0){
+			buildCommand(node);
+		}
+		for(FileStruct nodeCp: node.fileChildren.values()){
+			buildCommand(nodeCp);
+			recurssiveRebuild(nodeCp);
+		}
+		return commands;
+	}
+	public static void buildCommand(FileStruct node){
+
+		String finalPermission = buildPermission(node);
+		String fileContent = "";
+
+
+		for(String nomeArquivo: node.fileArquivo.keySet()){
+			fileContent = fileContent + "createfile "+ getAbsolutePath(node)+ "/"+ nomeArquivo+" " + getContentOfFile(nomeArquivo).replace("\n","\\n") + "\n";
+		}
+
+		if(node.nodeNumber != 0) {
+			if ((finalPermission.equals(""))) {
+				commands = commands + "mkdir " + getAbsolutePath(node) + "\n";
+			} else {
+				commands = commands + "mkdir " + getAbsolutePath(node) + "\n" + "chmod " + finalPermission + " " + node.nome + "\n";
+			}
+		}
+		System.out.println("Final: " + finalPermission);
+		commands = commands  + fileContent;
+
+	}
+	public static String getContentOfFile(String fileName){
+		String content = "";
+		String result = "";
+		try {
+			FileReader fileToShow = new FileReader(fileName);
+			String line = null;
+
+			BufferedReader buffer = new BufferedReader(fileToShow);
+
+			while((line = buffer.readLine())!= null){
+				content = content + line + "\n";
+			}
+			result = content;
+		}catch (Exception ex ){
+			return "arquivo nao existe";
+		}
+		return result;
+
+	}
+	public static String buildPermission(FileStruct node){
+		String binaryC = "";
+
+		String read = node.permission.substring(0,3);
+		String write = node.permission.substring(3,6);
+		String user = node.permission.substring(6,9);
+		int userI = 0;
+		int readI = 0;
+		int writeI = 0;
+
+		if( !(node.permission.equals("rwxrwxrwx"))){
+
+			for(char cmp: read.toCharArray()){
+				if(cmp == '-'){
+					binaryC += "0";
+				}
+				else{
+					binaryC +="1";
+				}
+			}
+			readI = Integer.parseInt(binaryC.substring(0,3),2);
+			for(char cmp: write.toCharArray()){
+				if(cmp == '-'){
+					binaryC += "0";
+				}
+				else{
+					binaryC +="1";
+				}
+			}
+			writeI = Integer.parseInt(binaryC.substring(3,6),2);
+
+			for(char cmp: user.toCharArray()){
+				if(cmp == '-'){
+					binaryC += "0";
+				}
+				else{
+					binaryC +="1";
+				}
+			}
+			userI = Integer.parseInt(binaryC.substring(6,9),2);
+			return readI + "" + writeI + "" + userI;
+		}else{
+			return "";
+		}
+
+	}
+	public static String getAbsolutePath(FileStruct node){
+		if(node.nome.equals("root")){
+			return "";
+		}
+		else{
+			return getAbsolutePath(node.fileParent) + "/" + node.nome;
 		}
 	}
 }
